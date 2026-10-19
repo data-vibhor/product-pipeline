@@ -2,6 +2,7 @@ import argparse
 
 from pipeline import state as st
 from pipeline.brief import run_brief
+from pipeline.checks import check_brief
 from pipeline.llm import get_client
 
 
@@ -20,7 +21,15 @@ def main() -> None:
 
     if args.cmd == "brief":
         run = run_brief(args.idea, get_client(args.llm))
-        print(f"Run {run.run_id}: brief at runs/{run.run_id}/brief.md")
+        path = st.run_dir(run.run_id) / "brief.md"
+        print(f"Run {run.run_id}: brief at {path}")
+        issues = check_brief(path.read_text())
+        if issues:
+            print("Checks FAILED:")
+            for issue in issues:
+                print(f"  - {issue}")
+        else:
+            print("Checks passed")
     elif args.cmd == "approve":
         run = st.approve(args.run_id, args.stage)
         print(f"Approved {args.stage} for {run.run_id}")
