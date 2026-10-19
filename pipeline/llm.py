@@ -1,8 +1,15 @@
 import os
+import re
 from pathlib import Path
 from typing import Protocol
 
 import httpx
+
+THINK_RE = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+
+def strip_thinking(text: str) -> str:
+    return THINK_RE.sub("", text).strip()
 
 
 class LLM(Protocol):
@@ -23,11 +30,13 @@ def load_env(path: Path = Path(".env")) -> None:
 class OllamaClient:
     def __init__(
         self,
-        model: str = "qwen2.5:7b",
+        model: str | None = None,
         host: str = "http://localhost:11434",
         timeout: float = 600.0,
+        num_ctx: int = 8192,
     ):
-        self.model, self.host, self.timeout = model, host, timeout
+        self.model = model or os.environ.get("OLLAMA_MODEL", "qwen3:8b")
+        self.host, self.timeout, self.num_ctx = host, timeout, num_ctx
 
     def chat(self, system: str, user: str) -> str:
         r = httpx.post(
@@ -35,6 +44,7 @@ class OllamaClient:
             json={
                 "model": self.model,
                 "stream": False,
+                "options": {"num_ctx": self.num_ctx},
                 "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
@@ -43,7 +53,7 @@ class OllamaClient:
             timeout=self.timeout,
         )
         r.raise_for_status()
-        return r.json()["message"]["content"]
+        return strip_thinking(r.json()["message"]["content"])
 
 
 class GroqClient:
