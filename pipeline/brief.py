@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from pipeline import state as st
+from pipeline.constraints import CONSTRAINTS_FILE, with_constraints
 from pipeline.llm import LLM
 from pipeline.textutil import clean_text
 
@@ -12,8 +13,9 @@ def run_brief(
     llm: LLM,
     runs_dir: Path = Path("runs"),
     prompt_file: Path = PROMPT_FILE,
+    constraints_file: Path = CONSTRAINTS_FILE,
 ) -> st.RunState:
-    system = prompt_file.read_text()
+    system = with_constraints(prompt_file.read_text(), constraints_file)
     run = st.new_run(idea, runs_dir)
     try:
         text = llm.chat(system, f"Product idea:\n{idea}")
