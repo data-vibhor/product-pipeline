@@ -60,3 +60,13 @@ def test_special_hyphens_are_normalized(tmp_path, prompt):
     text = (runs / run.run_id / "brief.md").read_text()
     assert "\u2011" not in text
     assert "Non-goals" in text
+
+
+def test_special_hyphens_are_normalized(tmp_path, prompt):
+    runs = tmp_path / "runs"
+    run = run_brief(
+        "idea", FakeLLM("## Non\u2011goals\ncash\u2011flow"), runs_dir=runs, prompt_file=prompt
+    )
+    text = (runs / run.run_id / "brief.md").read_text()
+    assert "\u2011" not in text
+    assert "Non-goals" in text

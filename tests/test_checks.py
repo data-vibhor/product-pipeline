@@ -36,3 +36,7 @@ def test_too_many_mvp_bullets_is_reported():
 
 def test_spaced_en_dash_is_reported():
     assert any("en dash" in i for i in check_brief(make_brief(extra="\na \u2013 b")))
+
+
+def test_spaced_en_dash_is_reported():
+    assert any("en dash" in i for i in check_brief(make_brief(extra="\na \u2013 b")))

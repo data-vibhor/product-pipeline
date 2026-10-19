@@ -23,3 +23,5 @@ Use exactly these markdown headings, in this order:
 Keep the whole brief under 550 words.
 
 Use plain hyphens only. Do not use en dashes or em dashes.
+
+Use plain hyphens only. Do not use en dashes or em dashes.
