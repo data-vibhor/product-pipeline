@@ -54,19 +54,18 @@ def test_approve_only_after_brief_is_ready(tmp_path, prompt):
 
 def test_special_hyphens_are_normalized(tmp_path, prompt):
     runs = tmp_path / "runs"
-    run = run_brief(
-        "idea", FakeLLM("## Non\u2011goals\ncash\u2011flow"), runs_dir=runs, prompt_file=prompt
-    )
+    reply = "## Non\u2011goals\ncash\u2011flow"
+    run = run_brief("idea", FakeLLM(reply), runs_dir=runs, prompt_file=prompt)
     text = (runs / run.run_id / "brief.md").read_text()
     assert "\u2011" not in text
     assert "Non-goals" in text
 
 
-def test_special_hyphens_are_normalized(tmp_path, prompt):
+def test_spaced_dashes_become_hyphens(tmp_path, prompt):
     runs = tmp_path / "runs"
-    run = run_brief(
-        "idea", FakeLLM("## Non\u2011goals\ncash\u2011flow"), runs_dir=runs, prompt_file=prompt
-    )
+    reply = "a \u2013 b and c \u2014 d and e\u2014f"
+    run = run_brief("idea", FakeLLM(reply), runs_dir=runs, prompt_file=prompt)
     text = (runs / run.run_id / "brief.md").read_text()
-    assert "\u2011" not in text
-    assert "Non-goals" in text
+    assert "\u2013" not in text
+    assert "\u2014" not in text
+    assert "a - b" in text

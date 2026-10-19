@@ -21,22 +21,21 @@ def test_wrong_order_is_reported():
 
 
 def test_em_dash_is_reported():
-    assert any("em dash" in i for i in check_brief(make_brief(extra="\na \u2014 b")))
+    issues = check_brief(make_brief(extra="\na \u2014 b"))
+    assert any("em dash" in i for i in issues)
+
+
+def test_spaced_en_dash_is_reported():
+    issues = check_brief(make_brief(extra="\na \u2013 b"))
+    assert any("en dash" in i for i in issues)
 
 
 def test_too_long_is_reported():
-    assert any("too long" in i for i in check_brief(make_brief(extra=" word" * 600)))
+    issues = check_brief(make_brief(extra=" word" * 600))
+    assert any("too long" in i for i in issues)
 
 
 def test_too_many_mvp_bullets_is_reported():
     bullets = "\n".join(f"- item {n}" for n in range(6))
     text = make_brief().replace("## MVP scope\ntext", f"## MVP scope\n{bullets}")
     assert any("MVP scope has 6 bullets" in i for i in check_brief(text))
-
-
-def test_spaced_en_dash_is_reported():
-    assert any("en dash" in i for i in check_brief(make_brief(extra="\na \u2013 b")))
-
-
-def test_spaced_en_dash_is_reported():
-    assert any("en dash" in i for i in check_brief(make_brief(extra="\na \u2013 b")))
