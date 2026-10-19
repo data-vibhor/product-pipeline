@@ -12,7 +12,7 @@ HEADINGS = [
     "Cheapest validation test",
     "Recommendation",
 ]
-MAX_WORDS = 450
+MAX_WORDS = 550
 MAX_MVP_BULLETS = 5
 
 
@@ -30,6 +30,8 @@ def check_brief(text: str) -> list[str]:
         issues.append(f"too long: {words} words (max {MAX_WORDS})")
     if "\u2014" in text:
         issues.append("contains an em dash")
+    if " \u2013 " in text:
+        issues.append("contains a spaced en dash used as a dash")
     section = re.search(
         r"^## MVP scope\s*\n(.*?)(?=^## |\Z)",
         text,

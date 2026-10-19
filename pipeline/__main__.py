@@ -11,7 +11,7 @@ def main() -> None:
     sub = parser.add_subparsers(dest="cmd", required=True)
     b = sub.add_parser("brief", help="stage 1: idea to brief")
     b.add_argument("idea")
-    b.add_argument("--llm", choices=["ollama", "groq"], default="ollama")
+    b.add_argument("--llm", choices=["ollama", "groq"], default="groq")
     a = sub.add_parser("approve", help="approve a stage output")
     a.add_argument("run_id")
     a.add_argument("stage")

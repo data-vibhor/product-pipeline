@@ -50,3 +50,13 @@ def test_approve_only_after_brief_is_ready(tmp_path, prompt):
         st.approve(early.run_id, "brief", runs)
     run = run_brief("an idea", FakeLLM(), runs_dir=runs, prompt_file=prompt)
     assert st.approve(run.run_id, "brief", runs).stages["brief"] == "approved"
+
+
+def test_special_hyphens_are_normalized(tmp_path, prompt):
+    runs = tmp_path / "runs"
+    run = run_brief(
+        "idea", FakeLLM("## Non\u2011goals\ncash\u2011flow"), runs_dir=runs, prompt_file=prompt
+    )
+    text = (runs / run.run_id / "brief.md").read_text()
+    assert "\u2011" not in text
+    assert "Non-goals" in text

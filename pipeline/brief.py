@@ -2,6 +2,7 @@ from pathlib import Path
 
 from pipeline import state as st
 from pipeline.llm import LLM
+from pipeline.textutil import clean_text
 
 PROMPT_FILE = Path("prompts/brief.md")
 
@@ -21,7 +22,7 @@ def run_brief(
         st.save(run, runs_dir)
         raise
     out = st.run_dir(run.run_id, runs_dir) / "brief.md"
-    out.write_text(text.strip() + "\n")
+    out.write_text(clean_text(text).strip() + "\n")
     run.stages["brief"] = "awaiting_approval"
     st.save(run, runs_dir)
     return run
