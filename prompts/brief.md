@@ -20,4 +20,4 @@ Use exactly these markdown headings, in this order:
 ## Recommendation
 (Go, Refine, or Drop, with two sentences of reasoning. Most ideas should be Refine. Say Go only if the validation test is cheap and the alternatives are clearly beatable)
 
-Keep the whole brief under 550 words.
+Keep the whole brief under 500 words.
