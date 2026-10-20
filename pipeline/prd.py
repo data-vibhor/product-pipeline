@@ -1,9 +1,10 @@
 from pathlib import Path
 
 from pipeline import state as st
+from pipeline.checks import check_prd
 from pipeline.constraints import CONSTRAINTS_FILE, with_constraints
 from pipeline.llm import LLM
-from pipeline.textutil import clean_text
+from pipeline.repair import generate_checked
 
 PROMPT_FILE = Path("prompts/prd.md")
 
@@ -21,7 +22,9 @@ def run_prd(
     brief = (st.run_dir(run_id, runs_dir) / "brief.md").read_text()
     system = with_constraints(prompt_file.read_text(), constraints_file)
     try:
-        text = llm.chat(system, f"Approved product brief:\n\n{brief}")
+        text, _ = generate_checked(
+            llm, system, f"Approved product brief:\n\n{brief}", check_prd
+        )
     except Exception:
         run.stages["prd"] = "failed"
         st.save(run, runs_dir)
@@ -29,7 +32,7 @@ def run_prd(
     out = st.run_dir(run_id, runs_dir) / "prd.md"
     if out.exists():
         out.replace(out.with_name("prd.prev.md"))
-    out.write_text(clean_text(text).strip() + "\n")
+    out.write_text(text + "\n")
     run.stages["prd"] = "awaiting_approval"
     st.save(run, runs_dir)
     return run
