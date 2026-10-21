@@ -1,4 +1,5 @@
 import argparse
+import json
 
 from pipeline import state as st
 from pipeline.brief import run_brief
@@ -7,6 +8,7 @@ from pipeline.checks import check_brief, check_prd
 from pipeline.gate import blocking_issues
 from pipeline.llm import get_client
 from pipeline.prd import run_prd
+from pipeline.review import run_review
 from pipeline.revise import STAGES, run_revise
 
 
@@ -35,6 +37,9 @@ def main() -> None:
     r.add_argument("--llm", choices=["ollama", "groq"], default="groq")
     bu = sub.add_parser("build", help="stage 3: approved PRD to code")
     bu.add_argument("run_id")
+    rv = sub.add_parser("review", help="stage 4: review the generated code")
+    rv.add_argument("run_id")
+    rv.add_argument("--llm", choices=["ollama", "groq"], default="groq")
     a = sub.add_parser("approve", help="approve a stage output")
     a.add_argument("run_id")
     a.add_argument("stage")
@@ -54,9 +59,7 @@ def main() -> None:
         print(f"Run {run.run_id}: PRD at {path}")
         report(check_prd(path.read_text()))
     elif args.cmd == "revise":
-        run = run_revise(
-            args.run_id, args.stage, args.feedback, get_client(args.llm)
-        )
+        run = run_revise(args.run_id, args.stage, args.feedback, get_client(args.llm))
         filename, checker, _ = STAGES[args.stage]
         path = st.run_dir(run.run_id) / filename
         print(f"Revised {args.stage}: {path} (old version kept as {args.stage}.prev.md)")
@@ -68,6 +71,22 @@ def main() -> None:
         print(f"Files created: {len(created_files(workspace))} in {workspace}")
         print(f"Log: {st.run_dir(run.run_id) / 'build.log'}")
         if run.stages["build"] == "failed":
+            raise SystemExit(1)
+    elif args.cmd == "review":
+        run, verdict = run_review(args.run_id, get_client(args.llm))
+        data = json.loads((st.run_dir(run.run_id) / "review.json").read_text())
+        counts = {
+            level: sum(1 for i in data["issues"] if i["severity"] == level)
+            for level in ("critical", "major", "minor")
+        }
+        print(
+            f"Verdict: {verdict} (critical {counts['critical']}, "
+            f"major {counts['major']}, minor {counts['minor']})"
+        )
+        for issue in data["issues"][:15]:
+            print(f"  [{issue['severity']}] {issue['file']}: {issue['problem']}")
+        print(f"Full report: {st.run_dir(run.run_id) / 'review.md'}")
+        if verdict == "block":
             raise SystemExit(1)
     elif args.cmd == "approve":
         issues = blocking_issues(args.run_id, args.stage)
