@@ -1,3 +1,4 @@
+import os
 import shutil
 import subprocess  # nosec B404
 from collections.abc import Callable
@@ -9,8 +10,19 @@ from pipeline.constraints import CONSTRAINTS_FILE
 MODEL = "opencode/nemotron-3-ultra-free"
 TIMEOUT_SECONDS = 1200
 REFERENCE_FILES = {"PRD.md", "constraints.md"}
+IGNORED = shutil.ignore_patterns("__pycache__", "*.pyc", ".git")
 
 Runner = Callable[[str, Path], tuple[int, str]]
+
+
+def default_workspace_root() -> Path:
+    override = os.environ.get("PIPELINE_WORKSPACES")
+    return Path(override) if override else Path.home() / "pipeline-workspaces"
+
+
+def inside_git_repo(path: Path) -> bool:
+    path = path.resolve()
+    return any((p / ".git").exists() for p in [path, *path.parents])
 
 
 def opencode_runner(message: str, cwd: Path) -> tuple[int, str]:
@@ -68,29 +80,39 @@ def run_build(
     runner: Runner = opencode_runner,
     runs_dir: Path = Path("runs"),
     constraints_file: Path = CONSTRAINTS_FILE,
+    workspace_root: Path | None = None,
 ) -> st.RunState:
     run = st.load(run_id, runs_dir)
     if run.stages["prd"] != "approved":
         raise ValueError("The PRD must be approved before building")
+    root = workspace_root or default_workspace_root()
+    if inside_git_repo(root):
+        raise RuntimeError(
+            f"{root} is inside a git repository. Builds must run outside any repo"
+        )
     base = st.run_dir(run_id, runs_dir)
     prd = (base / "prd.md").read_text()
-    constraints = (
-        constraints_file.read_text() if constraints_file.exists() else ""
-    )
-    workspace = base / "build"
+    constraints = constraints_file.read_text() if constraints_file.exists() else ""
+    root.mkdir(parents=True, exist_ok=True)
+    work = root / run_id
+    prev_work = root / f"{run_id}.prev"
+    if work.exists():
+        if prev_work.exists():
+            shutil.rmtree(prev_work)
+        work.rename(prev_work)
+    work.mkdir()
+    (work / "PRD.md").write_text(prd)
+    (work / "constraints.md").write_text(constraints)
+    code, output = runner(build_message(prd, constraints), work)
+    (base / "build.log").write_text(output)
+    dest = base / "build"
     prev = base / "build.prev"
-    if workspace.exists():
+    if dest.exists():
         if prev.exists():
             shutil.rmtree(prev)
-        workspace.rename(prev)
-    workspace.mkdir()
-    (workspace / "PRD.md").write_text(prd)
-    (workspace / "constraints.md").write_text(constraints)
-    code, output = runner(build_message(prd, constraints), workspace)
-    (base / "build.log").write_text(output)
-    if code != 0 or not created_files(workspace):
-        run.stages["build"] = "failed"
-    else:
-        run.stages["build"] = "approved"
+        dest.rename(prev)
+    shutil.copytree(work, dest, ignore=IGNORED)
+    ok = code == 0 and bool(created_files(dest))
+    run.stages["build"] = "approved" if ok else "failed"
     st.save(run, runs_dir)
     return run
