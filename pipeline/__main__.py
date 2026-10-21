@@ -5,6 +5,7 @@ from pipeline import state as st
 from pipeline.brief import run_brief
 from pipeline.build import created_files, run_build
 from pipeline.checks import check_brief, check_prd
+from pipeline.driver import Steps, drive, run_all
 from pipeline.fix import load_issues, run_fix
 from pipeline.gate import blocking_issues
 from pipeline.llm import get_client
@@ -20,6 +21,18 @@ def report(issues: list[str]) -> None:
             print(f"  - {issue}")
     else:
         print("Checks passed")
+
+
+def real_steps(llm_name: str) -> Steps:
+    llm = get_client(llm_name)
+    return Steps(
+        brief=lambda idea: run_brief(idea, llm),
+        prd=lambda run_id: run_prd(run_id, llm),
+        revise=lambda run_id, stage, text: run_revise(run_id, stage, text, llm),
+        build=run_build,
+        review=lambda run_id: run_review(run_id, llm),
+        fix=run_fix,
+    )
 
 
 def main() -> None:
@@ -47,6 +60,10 @@ def main() -> None:
     fx.add_argument("run_id")
     fx.add_argument("numbers", help="issue numbers, for example 1,2,5-7")
     fx.add_argument("--note", default="", help="extra instruction for the fixer")
+    ra = sub.add_parser("run-all", help="run every stage, asking for your approvals")
+    ra.add_argument("idea", nargs="?", help="a one-sentence product idea")
+    ra.add_argument("--resume", metavar="RUN_ID", help="continue an existing run")
+    ra.add_argument("--llm", choices=["ollama", "groq"], default="groq")
     a = sub.add_parser("approve", help="approve a stage output")
     a.add_argument("run_id")
     a.add_argument("stage")
@@ -106,8 +123,18 @@ def main() -> None:
         if ok:
             print("Review is reset. Run the review again on the fixed code.")
         else:
-            print("Your current build was not changed.")
+            print("The fix failed. See the log. The build folder was checked for edits.")
             raise SystemExit(1)
+    elif args.cmd == "run-all":
+        steps = real_steps(args.llm)
+        if args.resume:
+            run = drive(args.resume, steps, input, print)
+        elif args.idea:
+            run = run_all(args.idea, steps, input, print)
+        else:
+            parser.error("give an idea, or use --resume RUN_ID")
+        print(f"\nStopped at run {run.run_id}. Stages: {run.stages}")
+        print(f"Resume later with: run-all --resume {run.run_id}")
     elif args.cmd == "approve":
         issues = blocking_issues(args.run_id, args.stage)
         if issues and not args.force:
