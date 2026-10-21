@@ -75,6 +75,22 @@ def tree_signature(path: Path) -> list[tuple[str, int, int]]:
     return items
 
 
+SCAFFOLD = {"PRD.md", "constraints.md", "CHANGES.md"}
+
+
+def has_partial_edits(work: Path, build_dir: Path) -> bool:
+    for p in work.rglob("*"):
+        if not p.is_file() or "__pycache__" in p.parts:
+            continue
+        rel = p.relative_to(work)
+        if rel.as_posix() in SCAFFOLD:
+            continue
+        old = build_dir / rel
+        if not old.exists() or old.read_bytes() != p.read_bytes():
+            return True
+    return False
+
+
 def apply_fix(
     run_id: str,
     message: str,
@@ -82,6 +98,7 @@ def apply_fix(
     runs_dir: Path = Path("runs"),
     constraints_file: Path = CONSTRAINTS_FILE,
     workspace_root: Path | None = None,
+    keep_partial: bool = False,
 ) -> tuple[st.RunState, bool, Path]:
     run = st.load(run_id, runs_dir)
     base = st.run_dir(run_id, runs_dir)
@@ -112,7 +129,7 @@ def apply_fix(
             "The build folder changed while the fixer ran in a separate folder. "
             f"Check {build_dir} before continuing"
         )
-    if code != 0:
+    if code != 0 and not (keep_partial and has_partial_edits(work, build_dir)):
         return run, False, work
     prev = base / "build.prev"
     if prev.exists():

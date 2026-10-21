@@ -130,7 +130,7 @@ def main() -> None:
         ok = repair_until_green(
             args.run_id,
             run_tests,
-            lambda rid, message: apply_fix(rid, message),
+            lambda rid, message: apply_fix(rid, message, keep_partial=True),
             max_rounds=args.rounds,
         )
         print(f"Result: {'tests pass' if ok else 'tests still failing'}")
