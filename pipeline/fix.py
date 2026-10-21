@@ -66,6 +66,15 @@ def fix_message(chosen: list[tuple[int, dict]], note: str) -> str:
     return text
 
 
+def tree_signature(path: Path) -> list[tuple[str, int, int]]:
+    items: list[tuple[str, int, int]] = []
+    for p in sorted(path.rglob("*")):
+        if p.is_file() and "__pycache__" not in p.parts:
+            stat = p.stat()
+            items.append((p.relative_to(path).as_posix(), stat.st_size, stat.st_mtime_ns))
+    return items
+
+
 def run_fix(
     run_id: str,
     numbers: str,
@@ -98,8 +107,14 @@ def run_fix(
     (work / "PRD.md").write_text((base / "prd.md").read_text())
     constraints = constraints_file.read_text() if constraints_file.exists() else ""
     (work / "constraints.md").write_text(constraints)
+    before = tree_signature(build_dir)
     code, output = runner(fix_message(chosen, note), work)
     (base / "fix.log").write_text(output)
+    if tree_signature(build_dir) != before:
+        raise RuntimeError(
+            "The build folder changed while the fixer ran in a separate folder. "
+            f"Check {build_dir} before continuing"
+        )
     if code != 0:
         return run, False, work
     prev = base / "build.prev"

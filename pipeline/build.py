@@ -25,6 +25,10 @@ def inside_git_repo(path: Path) -> bool:
     return any((p / ".git").exists() for p in [path, *path.parents])
 
 
+def child_env(cwd: Path) -> dict[str, str]:
+    return {**os.environ, "PWD": str(cwd)}
+
+
 def opencode_runner(message: str, cwd: Path) -> tuple[int, str]:
     exe = shutil.which("opencode")
     if exe is None:
@@ -33,6 +37,7 @@ def opencode_runner(message: str, cwd: Path) -> tuple[int, str]:
         proc = subprocess.run(  # nosec B603
             [exe, "run", "--model", MODEL, message],
             cwd=cwd,
+            env=child_env(cwd),
             capture_output=True,
             text=True,
             timeout=TIMEOUT_SECONDS,
