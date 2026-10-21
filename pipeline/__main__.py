@@ -6,6 +6,7 @@ from pipeline.checks import check_brief, check_prd
 from pipeline.gate import blocking_issues
 from pipeline.llm import get_client
 from pipeline.prd import run_prd
+from pipeline.revise import STAGES, run_revise
 
 
 def report(issues: list[str]) -> None:
@@ -26,6 +27,11 @@ def main() -> None:
     p = sub.add_parser("prd", help="stage 2: approved brief to PRD")
     p.add_argument("run_id")
     p.add_argument("--llm", choices=["ollama", "groq"], default="groq")
+    r = sub.add_parser("revise", help="apply your written feedback to a stage output")
+    r.add_argument("run_id")
+    r.add_argument("stage", choices=sorted(STAGES))
+    r.add_argument("feedback")
+    r.add_argument("--llm", choices=["ollama", "groq"], default="groq")
     a = sub.add_parser("approve", help="approve a stage output")
     a.add_argument("run_id")
     a.add_argument("stage")
@@ -44,6 +50,14 @@ def main() -> None:
         path = st.run_dir(run.run_id) / "prd.md"
         print(f"Run {run.run_id}: PRD at {path}")
         report(check_prd(path.read_text()))
+    elif args.cmd == "revise":
+        run = run_revise(
+            args.run_id, args.stage, args.feedback, get_client(args.llm)
+        )
+        filename, checker, _ = STAGES[args.stage]
+        path = st.run_dir(run.run_id) / filename
+        print(f"Revised {args.stage}: {path} (old version kept as {args.stage}.prev.md)")
+        report(checker(path.read_text()))
     elif args.cmd == "approve":
         issues = blocking_issues(args.run_id, args.stage)
         if issues and not args.force:
