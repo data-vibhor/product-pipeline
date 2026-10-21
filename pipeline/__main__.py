@@ -2,6 +2,7 @@ import argparse
 
 from pipeline import state as st
 from pipeline.brief import run_brief
+from pipeline.build import created_files, run_build
 from pipeline.checks import check_brief, check_prd
 from pipeline.gate import blocking_issues
 from pipeline.llm import get_client
@@ -32,6 +33,8 @@ def main() -> None:
     r.add_argument("stage", choices=sorted(STAGES))
     r.add_argument("feedback")
     r.add_argument("--llm", choices=["ollama", "groq"], default="groq")
+    bu = sub.add_parser("build", help="stage 3: approved PRD to code")
+    bu.add_argument("run_id")
     a = sub.add_parser("approve", help="approve a stage output")
     a.add_argument("run_id")
     a.add_argument("stage")
@@ -58,6 +61,14 @@ def main() -> None:
         path = st.run_dir(run.run_id) / filename
         print(f"Revised {args.stage}: {path} (old version kept as {args.stage}.prev.md)")
         report(checker(path.read_text()))
+    elif args.cmd == "build":
+        run = run_build(args.run_id)
+        workspace = st.run_dir(run.run_id) / "build"
+        print(f"Build status: {run.stages['build']}")
+        print(f"Files created: {len(created_files(workspace))} in {workspace}")
+        print(f"Log: {st.run_dir(run.run_id) / 'build.log'}")
+        if run.stages["build"] == "failed":
+            raise SystemExit(1)
     elif args.cmd == "approve":
         issues = blocking_issues(args.run_id, args.stage)
         if issues and not args.force:
