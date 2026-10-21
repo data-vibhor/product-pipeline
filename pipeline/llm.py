@@ -1,5 +1,8 @@
 import os
 import re
+import sys
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
@@ -25,6 +28,36 @@ def load_env(path: Path = Path(".env")) -> None:
             continue
         key, value = line.split("=", 1)
         os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+
+
+def _retry_wait(response: httpx.Response, attempt: int) -> float:
+    header = response.headers.get("retry-after")
+    if header:
+        try:
+            return min(float(header) + 1, 90.0)
+        except ValueError:
+            pass
+    return min(15.0 * (attempt + 1), 90.0)
+
+
+def post_with_retry(
+    url: str,
+    *,
+    headers: dict | None = None,
+    json: dict | None = None,
+    timeout: float = 120.0,
+    retries: int = 4,
+    sleep: Callable[[float], None] = time.sleep,
+) -> httpx.Response:
+    for attempt in range(retries + 1):
+        response = httpx.post(url, headers=headers, json=json, timeout=timeout)
+        if response.status_code != 429 or attempt == retries:
+            response.raise_for_status()
+            return response
+        wait = _retry_wait(response, attempt)
+        print(f"Rate limited, waiting {wait:.0f}s ...", file=sys.stderr, flush=True)
+        sleep(wait)
+    raise RuntimeError("unreachable")
 
 
 class OllamaClient:
@@ -64,7 +97,7 @@ class GroqClient:
         self.key, self.model, self.timeout = key, model, timeout
 
     def chat(self, system: str, user: str) -> str:
-        r = httpx.post(
+        r = post_with_retry(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {self.key}"},
             json={
@@ -76,7 +109,6 @@ class GroqClient:
             },
             timeout=self.timeout,
         )
-        r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"]
 
 
