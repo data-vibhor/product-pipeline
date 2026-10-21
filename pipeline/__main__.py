@@ -5,6 +5,7 @@ from pipeline import state as st
 from pipeline.brief import run_brief
 from pipeline.build import created_files, run_build
 from pipeline.checks import check_brief, check_prd
+from pipeline.fix import load_issues, run_fix
 from pipeline.gate import blocking_issues
 from pipeline.llm import get_client
 from pipeline.prd import run_prd
@@ -40,6 +41,12 @@ def main() -> None:
     rv = sub.add_parser("review", help="stage 4: review the generated code")
     rv.add_argument("run_id")
     rv.add_argument("--llm", choices=["ollama", "groq"], default="groq")
+    iss = sub.add_parser("issues", help="list the numbered review issues")
+    iss.add_argument("run_id")
+    fx = sub.add_parser("fix", help="fix chosen review issues with Nemotron")
+    fx.add_argument("run_id")
+    fx.add_argument("numbers", help="issue numbers, for example 1,2,5-7")
+    fx.add_argument("--note", default="", help="extra instruction for the fixer")
     a = sub.add_parser("approve", help="approve a stage output")
     a.add_argument("run_id")
     a.add_argument("stage")
@@ -87,6 +94,19 @@ def main() -> None:
             print(f"  [{issue['severity']}] {issue['file']}: {issue['problem']}")
         print(f"Full report: {st.run_dir(run.run_id) / 'review.md'}")
         if verdict == "block":
+            raise SystemExit(1)
+    elif args.cmd == "issues":
+        for number, issue in enumerate(load_issues(args.run_id), start=1):
+            print(f"{number}. [{issue['severity']}] {issue['file']}: {issue['problem']}")
+    elif args.cmd == "fix":
+        run, ok, work = run_fix(args.run_id, args.numbers, args.note)
+        print(f"Fix status: {'done' if ok else 'failed'}")
+        print(f"Fix workspace: {work}")
+        print(f"Log: {st.run_dir(run.run_id) / 'fix.log'}")
+        if ok:
+            print("Review is reset. Run the review again on the fixed code.")
+        else:
+            print("Your current build was not changed.")
             raise SystemExit(1)
     elif args.cmd == "approve":
         issues = blocking_issues(args.run_id, args.stage)
