@@ -75,21 +75,41 @@ def reviewable_files(workspace: Path) -> list[Path]:
     return files
 
 
+def split_body(body: str, limit: int) -> list[str]:
+    parts: list[str] = []
+    current = ""
+    for line in body.splitlines(keepends=True):
+        while len(line) > limit:
+            if current:
+                parts.append(current)
+                current = ""
+            parts.append(line[:limit])
+            line = line[limit:]
+        if current and len(current) + len(line) > limit:
+            parts.append(current)
+            current = ""
+        current += line
+    if current:
+        parts.append(current)
+    return parts or [""]
+
+
 def make_chunks(workspace: Path, max_chars: int = MAX_CHARS) -> list[str]:
     chunks: list[str] = []
     current: list[str] = []
     size = 0
     for path in reviewable_files(workspace):
         rel = path.relative_to(workspace).as_posix()
-        body = path.read_text(errors="replace")
-        if len(body) > max_chars:
-            body = body[:max_chars] + "\n[truncated]"
-        block = f"=== FILE: {rel} ===\n{body}\n"
-        if current and size + len(block) > max_chars:
-            chunks.append("".join(current))
-            current, size = [], 0
-        current.append(block)
-        size += len(block)
+        limit = max(max_chars - len(rel) - 40, 50)
+        pieces = split_body(path.read_text(errors="replace"), limit)
+        for number, piece in enumerate(pieces, start=1):
+            label = rel if len(pieces) == 1 else f"{rel} (part {number} of {len(pieces)})"
+            block = f"=== FILE: {label} ===\n{piece}\n"
+            if current and size + len(block) > max_chars:
+                chunks.append("".join(current))
+                current, size = [], 0
+            current.append(block)
+            size += len(block)
     if current:
         chunks.append("".join(current))
     return chunks
