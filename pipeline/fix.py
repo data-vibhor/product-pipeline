@@ -75,10 +75,9 @@ def tree_signature(path: Path) -> list[tuple[str, int, int]]:
     return items
 
 
-def run_fix(
+def apply_fix(
     run_id: str,
-    numbers: str,
-    note: str = "",
+    message: str,
     runner: Runner = opencode_runner,
     runs_dir: Path = Path("runs"),
     constraints_file: Path = CONSTRAINTS_FILE,
@@ -89,8 +88,6 @@ def run_fix(
     build_dir = base / "build"
     if not build_dir.exists():
         raise ValueError("There is no build to fix")
-    issues = load_issues(run_id, runs_dir)
-    chosen = [(n, issues[n - 1]) for n in parse_numbers(numbers, len(issues))]
     root = workspace_root or default_workspace_root()
     if inside_git_repo(root):
         raise RuntimeError(
@@ -108,7 +105,7 @@ def run_fix(
     constraints = constraints_file.read_text() if constraints_file.exists() else ""
     (work / "constraints.md").write_text(constraints)
     before = tree_signature(build_dir)
-    code, output = runner(fix_message(chosen, note), work)
+    code, output = runner(message, work)
     (base / "fix.log").write_text(output)
     if tree_signature(build_dir) != before:
         raise RuntimeError(
@@ -125,3 +122,24 @@ def run_fix(
     run.stages["review"] = "pending"
     st.save(run, runs_dir)
     return run, True, work
+
+
+def run_fix(
+    run_id: str,
+    numbers: str,
+    note: str = "",
+    runner: Runner = opencode_runner,
+    runs_dir: Path = Path("runs"),
+    constraints_file: Path = CONSTRAINTS_FILE,
+    workspace_root: Path | None = None,
+) -> tuple[st.RunState, bool, Path]:
+    issues = load_issues(run_id, runs_dir)
+    chosen = [(n, issues[n - 1]) for n in parse_numbers(numbers, len(issues))]
+    return apply_fix(
+        run_id,
+        fix_message(chosen, note),
+        runner,
+        runs_dir,
+        constraints_file,
+        workspace_root,
+    )

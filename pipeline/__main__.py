@@ -6,12 +6,13 @@ from pipeline.brief import run_brief
 from pipeline.build import created_files, run_build
 from pipeline.checks import check_brief, check_prd
 from pipeline.driver import Steps, drive, run_all
-from pipeline.fix import load_issues, run_fix
+from pipeline.fix import apply_fix, load_issues, run_fix
 from pipeline.gate import blocking_issues
 from pipeline.llm import get_client
 from pipeline.prd import run_prd
 from pipeline.review import run_review
 from pipeline.revise import STAGES, run_revise
+from pipeline.testfix import repair_until_green
 from pipeline.testrun import run_tests
 
 
@@ -59,6 +60,9 @@ def main() -> None:
     iss.add_argument("run_id")
     ts = sub.add_parser("test", help="stage 5: run the generated tests in Docker")
     ts.add_argument("run_id")
+    tf = sub.add_parser("test-fix", help="run the tests and let the fixer repair failures")
+    tf.add_argument("run_id")
+    tf.add_argument("--rounds", type=int, default=3, help="maximum fix rounds")
     fx = sub.add_parser("fix", help="fix chosen review issues with Nemotron")
     fx.add_argument("run_id")
     fx.add_argument("numbers", help="issue numbers, for example 1,2,5-7")
@@ -119,6 +123,17 @@ def main() -> None:
         ok, tail = run_tests(args.run_id)
         print(f"Tests: {'passed' if ok else 'FAILED'}")
         print(tail)
+        print(f"Full log: {st.run_dir(args.run_id) / 'test.log'}")
+        if not ok:
+            raise SystemExit(1)
+    elif args.cmd == "test-fix":
+        ok = repair_until_green(
+            args.run_id,
+            run_tests,
+            lambda rid, message: apply_fix(rid, message),
+            max_rounds=args.rounds,
+        )
+        print(f"Result: {'tests pass' if ok else 'tests still failing'}")
         print(f"Full log: {st.run_dir(args.run_id) / 'test.log'}")
         if not ok:
             raise SystemExit(1)
