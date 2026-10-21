@@ -12,6 +12,7 @@ from pipeline.llm import get_client
 from pipeline.prd import run_prd
 from pipeline.review import run_review
 from pipeline.revise import STAGES, run_revise
+from pipeline.testrun import run_tests
 
 
 def report(issues: list[str]) -> None:
@@ -56,6 +57,8 @@ def main() -> None:
     rv.add_argument("--llm", choices=["ollama", "groq"], default="groq")
     iss = sub.add_parser("issues", help="list the numbered review issues")
     iss.add_argument("run_id")
+    ts = sub.add_parser("test", help="stage 5: run the generated tests in Docker")
+    ts.add_argument("run_id")
     fx = sub.add_parser("fix", help="fix chosen review issues with Nemotron")
     fx.add_argument("run_id")
     fx.add_argument("numbers", help="issue numbers, for example 1,2,5-7")
@@ -111,6 +114,13 @@ def main() -> None:
             print(f"  [{issue['severity']}] {issue['file']}: {issue['problem']}")
         print(f"Full report: {st.run_dir(run.run_id) / 'review.md'}")
         if verdict == "block":
+            raise SystemExit(1)
+    elif args.cmd == "test":
+        ok, tail = run_tests(args.run_id)
+        print(f"Tests: {'passed' if ok else 'FAILED'}")
+        print(tail)
+        print(f"Full log: {st.run_dir(args.run_id) / 'test.log'}")
+        if not ok:
             raise SystemExit(1)
     elif args.cmd == "issues":
         for number, issue in enumerate(load_issues(args.run_id), start=1):
