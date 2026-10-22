@@ -5,6 +5,7 @@ from pipeline import state as st
 from pipeline.brief import run_brief
 from pipeline.build import created_files, run_build
 from pipeline.checks import check_brief, check_prd
+from pipeline.deploy import write_kit
 from pipeline.driver import Steps, drive, run_all
 from pipeline.fix import apply_fix, load_issues, run_fix
 from pipeline.gate import blocking_issues
@@ -63,6 +64,8 @@ def main() -> None:
     tf = sub.add_parser("test-fix", help="run the tests and let the fixer repair failures")
     tf.add_argument("run_id")
     tf.add_argument("--rounds", type=int, default=3, help="maximum fix rounds")
+    dk = sub.add_parser("deploy-kit", help="stage 6: write the deploy files into the build")
+    dk.add_argument("run_id")
     fx = sub.add_parser("fix", help="fix chosen review issues with Nemotron")
     fx.add_argument("run_id")
     fx.add_argument("numbers", help="issue numbers, for example 1,2,5-7")
@@ -137,6 +140,15 @@ def main() -> None:
         print(f"Full log: {st.run_dir(args.run_id) / 'test.log'}")
         if not ok:
             raise SystemExit(1)
+    elif args.cmd == "deploy-kit":
+        try:
+            written = write_kit(args.run_id)
+        except ValueError as err:
+            print(err)
+            raise SystemExit(1) from err
+        print("Deploy files written into the build folder:")
+        for name in written:
+            print(f"  {name}")
     elif args.cmd == "issues":
         for number, issue in enumerate(load_issues(args.run_id), start=1):
             print(f"{number}. [{issue['severity']}] {issue['file']}: {issue['problem']}")
