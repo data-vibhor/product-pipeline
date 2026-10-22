@@ -5,6 +5,7 @@ from pipeline import state as st
 from pipeline.brief import run_brief
 from pipeline.build import created_files, run_build
 from pipeline.checks import check_brief, check_prd
+from pipeline.complete import TASKS, run_complete
 from pipeline.deploy import write_kit
 from pipeline.driver import Steps, drive, run_all
 from pipeline.fix import apply_fix, load_issues, run_fix
@@ -70,6 +71,9 @@ def main() -> None:
     fx.add_argument("run_id")
     fx.add_argument("numbers", help="issue numbers, for example 1,2,5-7")
     fx.add_argument("--note", default="", help="extra instruction for the fixer")
+    cp = sub.add_parser("complete", help="finish a build that stopped early, one piece at a time")
+    cp.add_argument("run_id")
+    cp.add_argument("task", choices=list(TASKS))
     ra = sub.add_parser("run-all", help="run every stage, asking for your approvals")
     ra.add_argument("idea", nargs="?", help="a one-sentence product idea")
     ra.add_argument("--resume", metavar="RUN_ID", help="continue an existing run")
@@ -161,6 +165,12 @@ def main() -> None:
             print("Review is reset. Run the review again on the fixed code.")
         else:
             print("The fix failed. See the log. The build folder was checked for edits.")
+            raise SystemExit(1)
+    elif args.cmd == "complete":
+        _run, ok, _work = run_complete(args.run_id, args.task)
+        print(f"Complete {args.task}: {'applied' if ok else 'FAILED'}")
+        print(f"Log: {st.run_dir(args.run_id) / 'fix.log'}")
+        if not ok:
             raise SystemExit(1)
     elif args.cmd == "run-all":
         steps = real_steps(args.llm)
