@@ -77,13 +77,30 @@ def test_missing_packages_are_passed_to_the_fixer(tmp_path):
     assert "pydantic[email]" in fixer.messages[0]
 
 
-def test_stops_when_there_is_no_progress(tmp_path):
+def test_no_progress_first_widens_the_task_then_stops(tmp_path):
     runs, run_id, base = make(tmp_path)
     tester = FakeTester(base, [(False, "FAILED tests/a.py::t - boom")])
     fixer = FakeFixer()
-    assert not repair_until_green(run_id, tester, fixer, runs, 3, quiet)
-    assert tester.calls == 2
-    assert len(fixer.messages) == 1
+    assert not repair_until_green(run_id, tester, fixer, runs, 5, quiet)
+    assert tester.calls == 3
+    assert len(fixer.messages) == 2
+    assert "test setup" not in fixer.messages[0]
+    assert "test setup" in fixer.messages[1]
+
+
+def test_widened_task_is_dropped_once_progress_resumes(tmp_path):
+    runs, run_id, base = make(tmp_path)
+    outputs = [
+        (False, "FAILED tests/a.py::t1 - x"),
+        (False, "FAILED tests/a.py::t1 - x"),
+        (False, "FAILED tests/a.py::t2 - y"),
+        (True, "ok"),
+    ]
+    tester, fixer = FakeTester(base, outputs), FakeFixer()
+    assert repair_until_green(run_id, tester, fixer, runs, 5, quiet)
+    assert len(fixer.messages) == 3
+    assert "test setup" in fixer.messages[1]
+    assert "test setup" not in fixer.messages[2]
 
 
 def test_stops_after_the_maximum_rounds(tmp_path):
@@ -129,6 +146,13 @@ def test_a_failed_last_build_uses_the_build_output():
         "=== round 2: docker build ===\nBUILD ERR"
     )
     assert "BUILD ERR" in last_run_output(log)
+
+
+def test_stuck_note_keeps_the_safety_rules():
+    text = fix_task("REPORT", [], stuck=True)
+    assert "fixtures" in text
+    assert "never delete or skip tests" in text
+    assert "Do not run any commands" in text
 
 
 def test_fix_task_has_extras_and_safety_rules():

@@ -51,7 +51,17 @@ def failure_report(output: str, max_chars: int = REPORT_CHARS) -> str:
     return "\n".join(parts)[:max_chars]
 
 
-def fix_task(report: str, extras: list[str]) -> str:
+STUCK_NOTE = (
+    "\nThe same tests still fail after the last fix, so the cause may be in the "
+    "test setup instead of the app: fixtures in tests/conftest.py, how the test "
+    "client is configured, cookies, or test data. First check the app code "
+    "against PRD.md. If the app is correct, you may fix the fixtures and test "
+    "setup. Still never delete or skip tests and never weaken assertions. "
+    "Record in CHANGES.md that you changed test setup and why.\n"
+)
+
+
+def fix_task(report: str, extras: list[str], stuck: bool = False) -> str:
     text = (
         "This folder holds an existing app whose automated tests fail when run in "
         "an offline Docker container. Read PRD.md and constraints.md first.\n"
@@ -72,6 +82,8 @@ def fix_task(report: str, extras: list[str]) -> str:
             "\nThese packages were missing from pyproject.toml and must be "
             "declared there: " + ", ".join(extras) + "\n"
         )
+    if stuck:
+        text += STUCK_NOTE
     return text + "\nTest failure report:\n\n" + report + "\n"
 
 
@@ -92,6 +104,7 @@ def repair_until_green(
 ) -> bool:
     base = st.run_dir(run_id, runs_dir)
     previous: list[str] | None = None
+    stuck = False
     for attempt in range(max_rounds + 1):
         say(f"Running the tests, attempt {attempt + 1} ...")
         ok, _ = tester(run_id)
@@ -102,13 +115,18 @@ def repair_until_green(
         signature = failure_lines(output)
         say(f"Tests failed: {len(signature)} failing or erroring tests")
         if previous is not None and signature == previous:
-            say("No progress since the last fix. Stopping.")
-            return False
+            if stuck:
+                say("No progress since the last fix. Stopping.")
+                return False
+            stuck = True
+            say("No progress. The fixer may now also check the test setup.")
+        else:
+            stuck = False
         previous = signature
         if attempt == max_rounds:
             break
         say("Asking the fixer ...")
-        message = fix_task(failure_report(output), read_extras(base))
+        message = fix_task(failure_report(output), read_extras(base), stuck)
         _, fixed, _ = fixer(run_id, message)
         if not fixed:
             say("The fixer failed. See fix.log in the run folder.")
