@@ -40,3 +40,13 @@ def test_stops_after_max_repairs():
     _text, issues = generate_checked(llm, "sys", "user", no_bad, max_repairs=2)
     assert issues == ["contains BAD"]
     assert len(llm.calls) == 3
+
+
+def test_repair_base_replaces_original_prompt():
+    llm = SeqLLM(["BAD draft", "good draft"])
+    big = "OLD DOCUMENT " * 100
+    generate_checked(llm, "sys", big, no_bad, repair_base="short base")
+    repair_prompt = llm.calls[1][1]
+    assert "short base" in repair_prompt
+    assert "OLD DOCUMENT" not in repair_prompt
+    assert "BAD draft" in repair_prompt

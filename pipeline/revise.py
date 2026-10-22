@@ -39,7 +39,16 @@ def run_revise(
         "Return the full revised document with the same headings."
     )
     try:
-        text, _ = generate_checked(llm, system, user, checker)
+        # The repair prompt must not resend the old document: it would double the
+        # request and exceed the provider's size limit.
+        text, _ = generate_checked(
+            llm,
+            system,
+            user,
+            checker,
+            repair_base="The founder required these changes to a document:\n\n"
+            + feedback,
+        )
     except Exception:
         run.stages[stage] = "failed"
         st.save(run, runs_dir)

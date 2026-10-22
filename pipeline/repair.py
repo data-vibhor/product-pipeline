@@ -10,13 +10,14 @@ def generate_checked(
     user: str,
     checker: Callable[[str], list[str]],
     max_repairs: int = 2,
+    repair_base: str | None = None,
 ) -> tuple[str, list[str]]:
     text = clean_text(llm.chat(system, user))
     issues = checker(text)
     repairs = 0
     while issues and repairs < max_repairs:
         fix = (
-            user
+            (user if repair_base is None else repair_base)
             + "\n\nYour previous draft:\n\n"
             + text
             + "\n\nIt failed these automatic checks:\n- "
