@@ -30,6 +30,8 @@ def test_writes_every_kit_file_with_the_service_name(tmp_path):
     assert "name: credit-invoice-tracker" in (build / "render.yaml").read_text()
     assert "{{" not in (build / "render.yaml").read_text()
     assert "region: singapore" in (build / "render.yaml").read_text()
+    ignored = (build / ".dockerignore").read_text().split()
+    assert "tests" not in ignored
 
 
 def test_refuses_when_tests_have_not_passed(tmp_path):

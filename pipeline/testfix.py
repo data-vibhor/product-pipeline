@@ -12,6 +12,7 @@ RUN_MARKER = re.compile(r"^=== round \d+: docker run.*$", re.MULTILINE)
 BUILD_MARKER = re.compile(r"^=== round \d+: docker build.*$", re.MULTILINE)
 SUMMARY_LINE = re.compile(r"^(FAILED|ERROR) \S+")
 ERROR_LINE = re.compile(r"^E\s{2,}\S")
+NO_TESTS = re.compile(r"no tests ran|collected 0 items|No files were found in testpaths")
 
 Tester = Callable[[str], tuple[bool, str]]
 Fixer = Callable[[str, str], tuple[object, bool, Path]]
@@ -113,6 +114,10 @@ def repair_until_green(
             return True
         output = last_run_output((base / "test.log").read_text())
         signature = failure_lines(output)
+        if not signature and NO_TESTS.search(output):
+            say("The test run found no tests. Check the build tests folder "
+                "and .dockerignore. Stopping.")
+            return False
         say(f"Tests failed: {len(signature)} failing or erroring tests")
         if previous is not None and signature == previous:
             if stuck:

@@ -112,6 +112,14 @@ def test_stops_after_the_maximum_rounds(tmp_path):
     assert len(fixer.messages) == 2
 
 
+def test_stops_when_the_test_run_finds_no_tests(tmp_path):
+    runs, run_id, base = make(tmp_path)
+    text = "PytestConfigWarning: No files were found in testpaths\n1 warning in 0.00s"
+    tester, fixer = FakeTester(base, [(False, text)]), FakeFixer()
+    assert not repair_until_green(run_id, tester, fixer, runs, 3, quiet)
+    assert fixer.messages == []
+
+
 def test_stops_when_the_fixer_fails(tmp_path):
     runs, run_id, base = make(tmp_path)
     tester = FakeTester(base, [(False, "FAILED tests/a.py::t")])
