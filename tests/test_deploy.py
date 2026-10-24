@@ -73,3 +73,14 @@ def test_database_url_is_made_asyncpg_friendly():
     assert fix("sqlite+aiosqlite:///x.db") == "sqlite+aiosqlite:///x.db"
     done = "postgresql+asyncpg://u:p@h/db?ssl=require"
     assert fix(done) == done
+
+
+@pytest.mark.parametrize("with_static", [True, False])
+def test_kit_copies_static_only_when_the_build_has_it(tmp_path, with_static):
+    runs, run_id, build = make(tmp_path)
+    if with_static:
+        (build / "static").mkdir()
+    write_kit(run_id, runs)
+    text = (build / "Dockerfile.prod").read_text()
+    assert ("COPY static/" in text) is with_static
+    assert "{{" not in text

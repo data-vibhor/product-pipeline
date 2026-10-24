@@ -46,6 +46,7 @@ def write_kit(run_id: str, runs_dir: Path = Path("runs")) -> list[str]:
     written: list[str] = []
     for source, dest in KIT_FILES.items():
         text = (KIT_DIR / source).read_text().replace("{{SERVICE_NAME}}", name)
+        text = text.replace("{{COPY_STATIC}}", "COPY static/ ./static/\n" if (build / "static").is_dir() else "")
         target = build / dest
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(text)

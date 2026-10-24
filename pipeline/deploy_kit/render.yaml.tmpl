@@ -12,7 +12,13 @@ services:
     envVars:
       - key: ENVIRONMENT
         value: production
+      - key: APP_ENV
+        value: production
       - key: SECRET_KEY
+        generateValue: true
+      - key: APP_SECRET_KEY
+        generateValue: true
+      - key: CRON_SECRET
         generateValue: true
       - key: DATABASE_URL
         sync: false

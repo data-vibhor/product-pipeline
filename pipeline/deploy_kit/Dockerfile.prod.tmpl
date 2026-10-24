@@ -15,7 +15,7 @@ RUN python -c "import tomllib; print(chr(10).join(tomllib.load(open('pyproject.t
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
 COPY app/ ./app/
-COPY start.py ./
+{{COPY_STATIC}}COPY start.py ./
 RUN chown -R appuser:appuser /app
 USER appuser
 
