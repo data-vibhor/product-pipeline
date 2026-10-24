@@ -4,7 +4,7 @@ from pipeline.complete import TASKS, complete_message, run_complete
 
 
 def test_tasks_cover_the_missing_pieces():
-    assert set(TASKS) == {"frontend-core", "frontend-invoices", "frontend-extras", "tests", "tests-more", "docs"}
+    assert set(TASKS) == {"frontend-core", "frontend-invoices", "frontend-extras", "tests", "tests-more", "hardening", "docs"}
 
 
 def test_every_task_forbids_commands():
@@ -48,3 +48,9 @@ def test_run_complete_keeps_a_log_per_task(tmp_path):
     (run / "fix.log").write_text("log text")
     run_complete("r1", "docs", lambda r, m: (None, True, None), runs_dir=tmp_path)
     assert (run / "fix-docs.log").read_text() == "log text"
+
+
+def test_hardening_task_lists_the_confirmed_defects():
+    text = complete_message("hardening")
+    for word in ("escapeHtml", "innerHTML", "password", "PyJWT"):
+        assert word in text

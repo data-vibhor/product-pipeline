@@ -66,6 +66,25 @@ TASKS: dict[str, str] = {
     "created once), tests/test_parsing.py (Indian amounts and dd/mm/yyyy dates, "
     "ambiguous dates), tests/test_replies.py (a parsed reply never changes status "
     "until the owner confirms). Fake the AI, storage and email providers.",
+    "hardening": READ_FIRST
+    + "Fix these confirmed security defects. Each fix needs a test in "
+    "tests/test_hardening.py that fails before the fix.\n"
+    "1. static/utils/escape.js: escapeHtml and escapeAttr replace each character "
+    "with itself, so nothing is escaped. Use the real entities (&amp; &lt; &gt; "
+    "&quot; &#039;). Add a Python test that reads the file and checks the entity "
+    "strings are present and that no replace() maps a character to itself.\n"
+    "2. Every static/**/*.js template that goes into innerHTML must escape every "
+    "value that comes from the API or the user, including the confirm messages in "
+    "static/screens/invoices.js. Prefer textContent. Add a Python test that scans "
+    "the JS and fails on any interpolation of customer_name, invoice_number, "
+    "customer_phone, customer_email, notes or an error detail that is not wrapped "
+    "in escapeHtml or escapeAttr.\n"
+    "3. DELETE /auth/account must require the current password in the request body "
+    "and must erase the owner's invoices, customers, replies and sessions, not "
+    "only mark the user deleted. Update the frontend account screen to ask for "
+    "the password.\n"
+    "4. Replace outdated or unused dependencies: use bcrypt directly or passlib "
+    "with bcrypt below 5; replace python-jose with PyJWT.",
     "docs": READ_FIRST
     + "Write README.md with run steps and environment variables, a complete "
     ".env.example with no real secrets, a .gitignore, and NOTES.md under "
