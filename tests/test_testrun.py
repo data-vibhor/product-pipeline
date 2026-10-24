@@ -106,3 +106,8 @@ def test_result_records_harness_extras(tmp_path):
     runs, run, base = make_run(tmp_path)
     run_tests(run.run_id, FakeRunner(), runs)
     assert "pytest-asyncio" in read_result(base)["harness_extras"]
+
+
+def test_dockerfile_lints_for_undefined_names_before_tests():
+    assert "ruff check --select F821,E9" in DOCKERFILE
+    assert DOCKERFILE.index("ruff check") < DOCKERFILE.index("pytest")

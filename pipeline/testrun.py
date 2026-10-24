@@ -13,7 +13,7 @@ IGNORED = shutil.ignore_patterns(
 BUILD_TIMEOUT = 900
 TEST_TIMEOUT = 300
 MAX_DEP_ROUNDS = 6
-HARNESS_EXTRAS = ["pytest", "pytest-asyncio", "httpx"]
+HARNESS_EXTRAS = ["pytest", "pytest-asyncio", "httpx", "ruff"]
 TEST_ENV = {
     "SECRET_KEY": "test-only-secret-not-for-production",  # nosec B105
     "ENVIRONMENT": "development",
@@ -43,7 +43,7 @@ COPY . /app
 RUN useradd -m tester && chown -R tester /app
 USER tester
 ENV PYTHONDONTWRITEBYTECODE=1
-CMD ["python", "-m", "pytest", "-q", "-p", "no:cacheprovider"]
+CMD ["sh", "-c", "ruff check --select F821,E9 --output-format concise --no-cache . 2>&1 | grep -E '^[^ ]+:[0-9]+:' | sed 's/^/FAILED lint: /' > /tmp/lint.txt; cat /tmp/lint.txt; python -m pytest -q -p no:cacheprovider; code=$?; if [ -s /tmp/lint.txt ]; then exit 1; fi; exit $code"]
 """
 
 INSTALL_SCRIPT = """import subprocess
@@ -64,7 +64,7 @@ extra = [
     for line in Path("_extra_requirements.txt").read_text().splitlines()
     if line.strip()
 ]
-base = ["pytest", "pytest-asyncio", "httpx"]
+base = ["pytest", "pytest-asyncio", "httpx", "ruff"]
 subprocess.check_call(
     [sys.executable, "-m", "pip", "install", "--no-cache-dir", *base, *deps, *extra]
 )
