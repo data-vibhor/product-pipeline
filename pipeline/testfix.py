@@ -1,5 +1,6 @@
 import json
 import re
+import shutil
 from collections import Counter
 from collections.abc import Callable
 from pathlib import Path
@@ -68,6 +69,9 @@ def fix_task(report: str, extras: list[str], stuck: bool = False) -> str:
         "an offline Docker container. Read PRD.md and constraints.md first.\n"
         "Fix the application so the tests pass. Many errors share one root "
         "cause, so find that first.\n"
+        "If API.md or UX.md exists in this folder, it is the contract. A test "
+        "that contradicts it is the wrong one: fix that test to match the "
+        "contract, and fix the app where the app contradicts the contract.\n"
         "Fix the app code, not the tests. Edit a test only if it clearly "
         "contradicts the PRD, and never delete tests or weaken assertions to "
         "make them pass.\n"
@@ -86,6 +90,13 @@ def fix_task(report: str, extras: list[str], stuck: bool = False) -> str:
     if stuck:
         text += STUCK_NOTE
     return text + "\nTest failure report:\n\n" + report + "\n"
+
+
+def read_status(base: Path) -> str:
+    path = base / "test-result.json"
+    if not path.exists():
+        return ""
+    return str(json.loads(path.read_text()).get("status", ""))
 
 
 def read_extras(base: Path) -> list[str]:
@@ -109,6 +120,9 @@ def repair_until_green(
     for attempt in range(max_rounds + 1):
         say(f"Running the tests, attempt {attempt + 1} ...")
         ok, _ = tester(run_id)
+        log_path = base / "test.log"
+        if log_path.exists():
+            shutil.copy(log_path, base / f"test-attempt-{attempt + 1}.log")
         if ok:
             say("Tests passed")
             return True
@@ -118,7 +132,10 @@ def repair_until_green(
             say("The test run found no tests. Check the build tests folder "
                 "and .dockerignore. Stopping.")
             return False
-        say(f"Tests failed: {len(signature)} failing or erroring tests")
+        if not signature and read_status(base) == "build_failed":
+            say("The Docker build failed, so no tests ran. The fixer gets the build error.")
+        else:
+            say(f"Tests failed: {len(signature)} failing or erroring tests")
         if previous is not None and signature == previous:
             if stuck:
                 say("No progress since the last fix. Stopping.")

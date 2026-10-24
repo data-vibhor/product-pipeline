@@ -169,3 +169,31 @@ def test_fix_task_has_extras_and_safety_rules():
     assert "REPORT" in text
     assert "Do not run any commands" in text
     assert "never delete tests" in text
+
+
+def test_each_attempt_keeps_its_own_log(tmp_path):
+    runs, run_id, base = make(tmp_path)
+    tester = FakeTester(base, [(False, "FAILED tests/a.py::t"), (True, "1 passed")])
+    repair_until_green(run_id, tester, FakeFixer(), runs, 3, quiet)
+    assert (base / "test-attempt-1.log").exists()
+    assert "FAILED tests/a.py::t" in (base / "test-attempt-1.log").read_text()
+    assert (base / "test-attempt-2.log").exists()
+
+
+def test_build_failure_is_reported_as_such(tmp_path):
+    runs, run_id, base = make(tmp_path)
+
+    def tester(rid):
+        (base / "test.log").write_text("=== round 1: docker build ===\nerror: no matching dist")
+        (base / "test-result.json").write_text(json.dumps({"status": "build_failed"}))
+        return False, "build error"
+
+    said: list[str] = []
+    repair_until_green(run_id, tester, FakeFixer(), runs, 0, said.append)
+    assert any("Docker build failed" in line for line in said)
+
+
+def test_fix_task_names_the_contract():
+    text = fix_task("report", [])
+    assert "API.md" in text
+    assert "contradicts" in text
