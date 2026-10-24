@@ -13,10 +13,23 @@ RUN_MARKER = re.compile(r"^=== round \d+: docker run.*$", re.MULTILINE)
 BUILD_MARKER = re.compile(r"^=== round \d+: docker build.*$", re.MULTILINE)
 SUMMARY_LINE = re.compile(r"^(FAILED|ERROR) \S+")
 ERROR_LINE = re.compile(r"^E\s{2,}\S")
+COLLECTION_ERROR = re.compile(
+    r"ImportError while loading conftest|ERROR collecting|errors? during collection"
+)
 NO_TESTS = re.compile(r"no tests ran|collected 0 items|No files were found in testpaths")
 
 Tester = Callable[[str], tuple[bool, str]]
 Fixer = Callable[[str, str], tuple[object, bool, Path]]
+Restore = Callable[[str], None]
+
+
+def restore_previous(run_id: str, runs_dir: Path = Path("runs")) -> None:
+    base = st.run_dir(run_id, runs_dir)
+    prev, build = base / "build.prev", base / "build"
+    if not prev.exists():
+        raise ValueError("There is no previous build to restore")
+    shutil.rmtree(build)
+    shutil.copytree(prev, build)
 
 
 def last_run_output(log: str) -> str:
@@ -113,9 +126,13 @@ def repair_until_green(
     runs_dir: Path = Path("runs"),
     max_rounds: int = MAX_ROUNDS,
     say: Callable[[str], None] = print,
+    restore: Restore | None = None,
+    note: str = "",
 ) -> bool:
     base = st.run_dir(run_id, runs_dir)
     previous: list[str] | None = None
+    last_report = ""
+    regress_note = ""
     stuck = False
     for attempt in range(max_rounds + 1):
         say(f"Running the tests, attempt {attempt + 1} ...")
@@ -132,23 +149,45 @@ def repair_until_green(
             say("The test run found no tests. Check the build tests folder "
                 "and .dockerignore. Stopping.")
             return False
-        if not signature and read_status(base) == "build_failed":
+        collection = bool(COLLECTION_ERROR.search(output))
+        if collection:
+            say("The tests could not be collected (an import or setup error).")
+        elif not signature and read_status(base) == "build_failed":
             say("The Docker build failed, so no tests ran. The fixer gets the build error.")
         else:
             say(f"Tests failed: {len(signature)} failing or erroring tests")
-        if previous is not None and signature == previous:
-            if stuck:
-                say("No progress since the last fix. Stopping.")
-                return False
-            stuck = True
-            say("No progress. The fixer may now also check the test setup.")
-        else:
+        worse = previous is not None and (
+            collection or len(signature) > len(previous)
+        )
+        if worse and restore is not None:
+            say("The last fix made things worse. Restoring the previous build.")
+            restore(run_id)
+            regress_note = (
+                "\nYour previous fix attempt made things worse and was reverted. "
+                "What it broke:\n" + failure_report(output, 1500) + "\n"
+                "Make a smaller, different change.\n"
+            )
             stuck = False
-        previous = signature
+            report = last_report
+        else:
+            regress_note = ""
+            report = failure_report(output)
+            last_report = report
+            if previous is not None and signature == previous:
+                if stuck:
+                    say("No progress since the last fix. Stopping.")
+                    return False
+                stuck = True
+                say("No progress. The fixer may now also check the test setup.")
+            else:
+                stuck = False
+            previous = signature
         if attempt == max_rounds:
             break
         say("Asking the fixer ...")
-        message = fix_task(failure_report(output), read_extras(base), stuck)
+        message = fix_task(report, read_extras(base), stuck) + regress_note
+        if note:
+            message += "\nExtra guidance from the engineer:\n" + note + "\n"
         _, fixed, _ = fixer(run_id, message)
         if not fixed:
             say("The fixer failed. See fix.log in the run folder.")

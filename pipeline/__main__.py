@@ -2,6 +2,7 @@ import argparse
 import json
 
 from pipeline import state as st
+from pipeline.autopilot import RealOps, autopilot
 from pipeline.brief import run_brief
 from pipeline.build import created_files, run_build
 from pipeline.checks import check_brief, check_prd
@@ -14,7 +15,7 @@ from pipeline.llm import get_client
 from pipeline.prd import run_prd
 from pipeline.review import run_review
 from pipeline.revise import STAGES, run_revise
-from pipeline.testfix import repair_until_green
+from pipeline.testfix import repair_until_green, restore_previous
 from pipeline.testrun import run_tests
 
 
@@ -65,6 +66,7 @@ def main() -> None:
     tf = sub.add_parser("test-fix", help="run the tests and let the fixer repair failures")
     tf.add_argument("run_id")
     tf.add_argument("--rounds", type=int, default=3, help="maximum fix rounds")
+    tf.add_argument("--note", default="", help="extra guidance for the fixer")
     dk = sub.add_parser("deploy-kit", help="stage 6: write the deploy files into the build")
     dk.add_argument("run_id")
     fx = sub.add_parser("fix", help="fix chosen review issues with Nemotron")
@@ -74,6 +76,8 @@ def main() -> None:
     cp = sub.add_parser("complete", help="finish a build that stopped early, one piece at a time")
     cp.add_argument("run_id")
     cp.add_argument("task", choices=list(TASKS))
+    ap = sub.add_parser("autopilot", help="run every remaining stage unattended, stop on failure")
+    ap.add_argument("run_id")
     ra = sub.add_parser("run-all", help="run every stage, asking for your approvals")
     ra.add_argument("idea", nargs="?", help="a one-sentence product idea")
     ra.add_argument("--resume", metavar="RUN_ID", help="continue an existing run")
@@ -139,6 +143,8 @@ def main() -> None:
             run_tests,
             lambda rid, message: apply_fix(rid, message, keep_partial=True),
             max_rounds=args.rounds,
+            restore=restore_previous,
+            note=args.note,
         )
         print(f"Result: {'tests pass' if ok else 'tests still failing'}")
         print(f"Full log: {st.run_dir(args.run_id) / 'test.log'}")
@@ -171,6 +177,9 @@ def main() -> None:
         print(f"Complete {args.task}: {'applied' if ok else 'FAILED'}")
         print(f"Log: {st.run_dir(args.run_id) / 'fix.log'}")
         if not ok:
+            raise SystemExit(1)
+    elif args.cmd == "autopilot":
+        if not autopilot(args.run_id, RealOps(args.run_id)):
             raise SystemExit(1)
     elif args.cmd == "run-all":
         steps = real_steps(args.llm)

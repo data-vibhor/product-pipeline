@@ -197,3 +197,67 @@ def test_fix_task_names_the_contract():
     text = fix_task("report", [])
     assert "API.md" in text
     assert "contradicts" in text
+
+
+def test_collection_error_is_reported_and_build_restored(tmp_path):
+    runs, run_id, base = make(tmp_path)
+    outputs = [
+        (False, "FAILED tests/a.py::t1\nFAILED tests/a.py::t2"),
+        (False, "ImportError while loading conftest 'tests/conftest.py'."),
+        (True, "2 passed"),
+    ]
+    tester = FakeTester(base, outputs)
+    restored: list[str] = []
+    said: list[str] = []
+    fixer = FakeFixer()
+    ok = repair_until_green(
+        run_id, tester, fixer, runs, 3, said.append, restore=restored.append
+    )
+    assert ok
+    assert restored == [run_id]
+    assert any("could not be collected" in line for line in said)
+    assert "made things worse" in fixer.messages[1]
+    assert "t1" in fixer.messages[1]
+
+
+def test_more_failures_than_before_restores_the_build(tmp_path):
+    runs, run_id, base = make(tmp_path)
+    outputs = [
+        (False, "FAILED tests/a.py::t1"),
+        (False, "FAILED tests/a.py::t1\nFAILED tests/a.py::t2\nFAILED tests/a.py::t3"),
+        (True, "3 passed"),
+    ]
+    restored: list[str] = []
+    repair_until_green(
+        run_id, FakeTester(base, outputs), FakeFixer(), runs, 3, quiet, restore=restored.append
+    )
+    assert restored == [run_id]
+
+
+def test_note_is_passed_to_the_fixer(tmp_path):
+    runs, run_id, base = make(tmp_path)
+    fixer = FakeFixer()
+    repair_until_green(
+        run_id,
+        FakeTester(base, [(False, "FAILED tests/a.py::t1")]),
+        fixer,
+        runs,
+        1,
+        quiet,
+        note="ROOT-CAUSE-HINT",
+    )
+    assert "ROOT-CAUSE-HINT" in fixer.messages[0]
+
+
+def test_restore_previous_copies_build_prev_over_build(tmp_path):
+    from pipeline.testfix import restore_previous
+
+    runs, run_id, base = make(tmp_path)
+    (base / "build").mkdir()
+    (base / "build" / "bad.txt").write_text("bad")
+    (base / "build.prev").mkdir()
+    (base / "build.prev" / "good.txt").write_text("good")
+    restore_previous(run_id, runs)
+    assert (base / "build" / "good.txt").exists()
+    assert not (base / "build" / "bad.txt").exists()
+    assert (base / "build.prev" / "good.txt").exists()
