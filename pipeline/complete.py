@@ -12,18 +12,36 @@ READ_FIRST = (
     "and do not use the network.\n\n"
 )
 
+FRONT = (
+    "Read UX.md and API.md only, then write code. They are the whole contract. "
+    "Do not read the backend. Do not change any backend file except where told. "
+    "Plain HTML, CSS and vanilla JavaScript. Never put user text into innerHTML. "
+    "Only create and edit files; do not run commands, install packages or use "
+    "the network.\n\n"
+)
+
 TASKS: dict[str, str] = {
-    "frontend": READ_FIRST
-    + "Build the missing mobile-first frontend exactly as UX.md describes, as plain "
-    "HTML, CSS and vanilla JavaScript in a static/ folder. Read UX.md before writing code. Check that app/main.py serves static/index.html "
-    "and the static files, and fix that wiring if it does not.\n"
-    "Screens: signup with the consent checkbox and privacy notice, login, invoice "
-    "list, upload (camera capture and file pick, canvas down-scale before upload), "
-    "review and edit with low-confidence fields flagged, reminder links, paste a "
-    "reply or upload a screenshot, CSV import, account deletion.\n"
-    "Every state-changing request must send the CSRF token the API expects. Never "
-    "put user text into innerHTML; escape it. Include the PWA manifest icons "
-    "reference and a service worker that never caches API responses.",
+    "frontend-core": FRONT
+    + "Create the app shell in static/: index.html, styles.css (mobile first, "
+    "44 px touch targets, bottom navigation with Today, Invoices, Account), app.js "
+    "(a small router, an api() helper that sends the CSRF header, an escape() "
+    "helper), manifest wiring, sw.js (never cache API responses) and icons/ (simple "
+    "generated PNG or SVG icons). Build the landing, signup (with the consent "
+    "checkbox and privacy notice), login and Account screens. Check app/main.py "
+    "serves static/index.html and static/ correctly and fix that wiring only.",
+    "frontend-invoices": FRONT
+    + "static/ already has the shell from the previous step. Add the Today screen "
+    "(ready reminders, one Send reminder button each, then the 'Did you send it?' "
+    "Yes or Skip step), the Invoices list with search, the Add invoice flow "
+    "(camera or file pick, canvas down-scale to about 1 MB before upload, progress "
+    "indicator, review cards with low-confidence fields highlighted and blocking "
+    "save), the invoice detail with Mark paid and Delete, each with a confirm step.",
+    "frontend-extras": FRONT
+    + "static/ already has the shell, Today and invoice screens. Add the paste "
+    "reply screen with the confirm card ('Promised on ... Correct?'), the CSV "
+    "import screen with its result (imported, duplicates, errors), the empty, "
+    "loading and error states for every screen, and the delete account confirm. "
+    "Then re-read the UX.md rules and fix any screen that breaks them.",
     "tests": READ_FIRST
     + "Write the pytest suite in tests/, including conftest.py, covering every "
     "acceptance criterion in PRD.md. Use an in-memory SQLite database through "
@@ -37,6 +55,17 @@ TASKS: dict[str, str] = {
     "be used by the code. Remove unused ones such as python-csv, openpyxl and "
     "apscheduler, and add aiosqlite and pytest-asyncio for the tests. Pin bcrypt "
     "below 5 if passlib is used.",
+    "tests-more": READ_FIRST
+    + "tests/conftest.py and tests/test_auth.py already exist. Keep them and reuse "
+    "their fixtures. Add these files, one at a time, each covering the PRD "
+    "acceptance criteria for its area: tests/test_invoices.py (create, list, "
+    "update, mark paid, delete, duplicates, CSV import), tests/test_isolation.py "
+    "(owner A can never read, change or delete owner B's invoices or replies), "
+    "tests/test_csrf.py (every state-changing endpoint rejects a missing or wrong "
+    "token), tests/test_cron.py (a missing or wrong secret gets 403; reminders are "
+    "created once), tests/test_parsing.py (Indian amounts and dd/mm/yyyy dates, "
+    "ambiguous dates), tests/test_replies.py (a parsed reply never changes status "
+    "until the owner confirms). Fake the AI, storage and email providers.",
     "docs": READ_FIRST
     + "Write README.md with run steps and environment variables, a complete "
     ".env.example with no real secrets, a .gitignore, and NOTES.md under "
@@ -52,7 +81,16 @@ def complete_message(task: str) -> str:
     return TASKS[task]
 
 
-def run_complete(run_id: str, task: str, fixer: Fixer | None = None):
+def run_complete(
+    run_id: str,
+    task: str,
+    fixer: Fixer | None = None,
+    runs_dir: Path = Path("runs"),
+):
     message = complete_message(task)
     use = fixer or (lambda rid, text: apply_fix(rid, text, keep_partial=True))
-    return use(run_id, message)
+    result = use(run_id, message)
+    log = runs_dir / run_id / "fix.log"
+    if log.exists():
+        (runs_dir / run_id / f"fix-{task}.log").write_text(log.read_text())
+    return result
