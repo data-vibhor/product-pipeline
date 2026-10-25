@@ -84,3 +84,15 @@ def test_kit_copies_static_only_when_the_build_has_it(tmp_path, with_static):
     text = (build / "Dockerfile.prod").read_text()
     assert ("COPY static/" in text) is with_static
     assert "{{" not in text
+
+
+def test_browser_gate_blocks_until_the_check_passes(tmp_path):
+    runs, run_id, _ = make(tmp_path)
+    with pytest.raises(ValueError, match="browser check"):
+        write_kit(run_id, runs, require_browser=True)
+    base = st.run_dir(run_id, runs)
+    (base / "browser-result.json").write_text(json.dumps({"status": "failed"}))
+    with pytest.raises(ValueError, match="browser check"):
+        write_kit(run_id, runs, require_browser=True)
+    (base / "browser-result.json").write_text(json.dumps({"status": "passed"}))
+    assert write_kit(run_id, runs, require_browser=True)

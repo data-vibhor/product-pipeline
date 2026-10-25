@@ -5,6 +5,13 @@ Check:
 - Correctness bugs and unhandled edge cases.
 - Security: hardcoded secrets, injection, unsafe cookies or sessions, weak password handling, and missing authorization. A user must only reach their own invoices.
 - Privacy under the DPDP Act 2023: collect only needed data, deletion really removes data, no personal data in logs.
+- Silent failures: bare except, pass inside except, or errors turned into success.
+- Undefined names, missing imports, and variables used before they are set.
+- Frontend and backend mismatch: a request body, route, method or field name that the other side does not accept. If the matching file is not in this chunk, say what to check.
+- Dead UI: a button, link or form with no working handler, or a save that does not refresh what is shown.
+- Errors shown as "[object Object]", a blank screen or nothing at all.
+- External services: model names, URLs and keys hardcoded instead of read from environment variables.
+- Missing account lifecycle: signup, login, logout, forgot password, reset password, change password, delete account.
 - Consistency with the PRD and the founder constraints.
 - The PRD itself: if the PRD text looks wrong or garbled, for example message wording that does not match its own description, report it as an issue with file "PRD".
 

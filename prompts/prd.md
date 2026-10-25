@@ -15,7 +15,7 @@ Use exactly these markdown headings, in this order:
 ## Non-goals
 ## Users and use cases
 ## Functional requirements
-(numbered list, each requirement testable)
+(numbered list, each requirement testable. If the product has accounts, include signup, login, logout, forgot password, reset password, change password and account deletion. Include what the user sees when something fails, such as a bad upload, a provider error or no network)
 ## Acceptance criteria
 (at least 5 items, each written so a person or a test can say pass or fail)
 ## Data and privacy
@@ -26,4 +26,4 @@ Use exactly these markdown headings, in this order:
 ## Milestones
 (three milestones, each deliverable in about a week)
 
-Keep the whole PRD under 1100 words.
+Keep the whole PRD under 1300 words.

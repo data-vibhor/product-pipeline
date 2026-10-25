@@ -29,13 +29,22 @@ def tests_passed(base: Path) -> bool:
     return json.loads(path.read_text()).get("status") == "passed"
 
 
-def write_kit(run_id: str, runs_dir: Path = Path("runs")) -> list[str]:
+def browser_check_passed(base: Path) -> bool:
+    path = base / "browser-result.json"
+    return path.exists() and json.loads(path.read_text()).get("status") == "passed"
+
+
+def write_kit(run_id: str, runs_dir: Path = Path("runs"), require_browser: bool = False) -> list[str]:
     base = st.run_dir(run_id, runs_dir)
     build = base / "build"
     if not build.exists():
         raise ValueError("There is no build to deploy")
     if not tests_passed(base):
         raise ValueError("The tests have not passed yet. Run test-fix first")
+    if require_browser and not browser_check_passed(base):
+        raise ValueError(
+            "The browser check has not passed. Run browser-test first, or use deploy-kit --skip-browser"
+        )
     for needed in ("pyproject.toml", "app/main.py"):
         if not (build / needed).exists():
             raise ValueError(f"The build has no {needed}")

@@ -67,8 +67,11 @@ def main() -> None:
     tf.add_argument("run_id")
     tf.add_argument("--rounds", type=int, default=3, help="maximum fix rounds")
     tf.add_argument("--note", default="", help="extra guidance for the fixer")
+    bt = sub.add_parser("browser-test", help="stage 5b: crawl the running app in a headless browser (Docker)")
+    bt.add_argument("run_id")
     dk = sub.add_parser("deploy-kit", help="stage 6: write the deploy files into the build")
     dk.add_argument("run_id")
+    dk.add_argument("--skip-browser", action="store_true", help="write the kit without a passed browser check")
     fx = sub.add_parser("fix", help="fix chosen review issues with Nemotron")
     fx.add_argument("run_id")
     fx.add_argument("numbers", help="issue numbers, for example 1,2,5-7")
@@ -150,9 +153,18 @@ def main() -> None:
         print(f"Full log: {st.run_dir(args.run_id) / 'test.log'}")
         if not ok:
             raise SystemExit(1)
+    elif args.cmd == "browser-test":
+        from pipeline.browsertest import run_browser_check
+
+        ok, tail = run_browser_check(args.run_id)
+        print(f"Browser check: {'passed' if ok else 'FAILED'}")
+        print(tail)
+        print(f"Full log: {st.run_dir(args.run_id) / 'browser.log'}")
+        if not ok:
+            raise SystemExit(1)
     elif args.cmd == "deploy-kit":
         try:
-            written = write_kit(args.run_id)
+            written = write_kit(args.run_id, require_browser=not args.skip_browser)
         except ValueError as err:
             print(err)
             raise SystemExit(1) from err

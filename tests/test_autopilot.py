@@ -32,6 +32,12 @@ class FakeOps:
         self.calls.append(f"fix:{numbers}")
         return True
 
+    browser_ok = True
+
+    def browser_check(self):
+        self.calls.append("browser_check")
+        return self.browser_ok
+
     def deploy_kit(self):
         self.calls.append("deploy_kit")
 
@@ -63,7 +69,7 @@ def test_happy_path_skips_done_work_and_deploys(tmp_path):
     ops = FakeOps(runs, rid)
     ok, notes = run(runs, rid, ops)
     assert ok
-    assert ops.calls == ["test_fix", "review", "deploy_kit"]
+    assert ops.calls == ["test_fix", "review", "browser_check", "deploy_kit"]
     assert notes[-1][0] == "Pipeline finished"
 
 
@@ -97,7 +103,7 @@ def test_blocking_issues_are_fixed_then_retested(tmp_path):
     ops = FakeOps(runs, rid, issue_rounds=(("critical", "minor", "major"), ()))
     ok, _ = run(runs, rid, ops)
     assert ok
-    assert ops.calls == ["test_fix", "review", "fix:1,3", "test_fix", "review", "deploy_kit"]
+    assert ops.calls == ["test_fix", "review", "fix:1,3", "test_fix", "review", "browser_check", "deploy_kit"]
 
 
 def test_stops_when_blocking_issues_never_clear(tmp_path):
@@ -107,3 +113,12 @@ def test_stops_when_blocking_issues_never_clear(tmp_path):
     assert not ok
     assert "deploy_kit" not in ops.calls
     assert ops.calls.count("fix:1") == 2
+
+
+def test_failed_browser_check_stops_before_deploy_kit(tmp_path):
+    runs, run_id = setup(tmp_path)
+    ops = FakeOps(runs, run_id)
+    ops.browser_ok = False
+    ok, notes = run(runs, run_id, ops)
+    assert not ok and "browser_check" in ops.calls and "deploy_kit" not in ops.calls
+    assert notes and "browser" in notes[0][1]

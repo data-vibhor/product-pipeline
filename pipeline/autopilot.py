@@ -30,6 +30,7 @@ class Ops(Protocol):
     def test_fix(self) -> bool: ...
     def review(self) -> str: ...
     def fix(self, numbers: str) -> bool: ...
+    def browser_check(self) -> bool: ...
     def deploy_kit(self) -> None: ...
 
 
@@ -83,6 +84,9 @@ def autopilot(
         say("Fixing the critical and major issues ...")
         if not ops.fix(",".join(str(n) for n in numbers)):
             return stop("the review fix failed. See fix.log in the run folder")
+    say("Crawling the app in a headless browser ...")
+    if not ops.browser_check():
+        return stop("the browser check failed. See browser.log in the run folder")
     say("Writing the deploy kit ...")
     ops.deploy_kit()
     say("AUTOPILOT DONE: tests pass and the review is clear. Ready to deploy.")
@@ -125,7 +129,12 @@ class RealOps:
 
         return bool(run_fix(self.run_id, numbers)[1])
 
+    def browser_check(self) -> bool:
+        from pipeline.browsertest import run_browser_check
+
+        return run_browser_check(self.run_id)[0]
+
     def deploy_kit(self) -> None:
         from pipeline.deploy import write_kit
 
-        write_kit(self.run_id)
+        write_kit(self.run_id, require_browser=True)
